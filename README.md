@@ -148,6 +148,8 @@ Hint: Think if you can reuse the same endpoints for both the frontend and the AP
 
 - **Backend stack is flexible, within reason.** The provided backend uses **Bun + Elysia**. You may switch to another backend/framework (e.g., Laravel), but if you do, we recommend using **Docker Compose** for the setup. In general, we encourage sticking to the provided stack or a widely used, well-documented framework.
 
+> If you still haven’t submitted a solution, we recommend taking a look at this section from time to time, as it may be updated if issues recur.
+
 ### How to start
 
 1. Make sure that project is running locally on your machine. The Bun runtime is cross-platform, so you should be able to run it on any operating system. If you encounter any issues, you can also switch the runtime to Node.js, but make sure to remove the Bun-specific code and dependencies.
