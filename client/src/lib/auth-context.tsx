@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        setUser({ ...parsedUser, token });
+        setUser({ ...parsedUser, role: parsedUser.role || "user", token });
       } catch {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("auth_user");
@@ -36,14 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = (newUser: User) => {
     setUser(newUser);
     localStorage.setItem("auth_token", newUser.token);
-    localStorage.setItem(
-      "auth_user",
-      JSON.stringify({
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-      }),
-    );
+    const { token, ...storedUser } = newUser;
+    localStorage.setItem("auth_user", JSON.stringify(storedUser));
   };
 
   const logout = () => {

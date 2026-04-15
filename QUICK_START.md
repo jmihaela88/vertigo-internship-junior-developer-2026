@@ -96,6 +96,9 @@ client/
 ### Bets
 - `POST /api/markets/:id/bets` - Place bet (requires auth)
 
+### Admin Resolution
+- `POST /api/markets/:id/resolve` - Resolve market with winning outcome (requires admin auth)
+
 ---
 
 ## Environment Variables
@@ -104,7 +107,14 @@ client/
 ```
 DB_FILE_NAME=database.sqlite
 PORT=4001
+JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_EMAILS=admin@vertigo.local
 ```
+
+Admin model (Polymarket-like):
+- Market creators are regular users and cannot resolve their own markets by default.
+- Resolution is handled by designated platform admin accounts (oracle-style) from `ADMIN_EMAILS`.
+- Any registered user whose email is listed in `ADMIN_EMAILS` is assigned the `admin` role.
 
 ### Client (Vite)
 ```

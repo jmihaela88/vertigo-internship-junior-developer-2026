@@ -12,6 +12,9 @@ const db = drizzle(new Database(process.env.DB_FILE_NAME || "database.sqlite"), 
 const USER_COUNT = 5_000;
 const MARKET_COUNT = 3_000;
 const SHARED_PASSWORD = "password123";
+const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@vertigo.local";
+const SEED_ADMIN_USERNAME = process.env.SEED_ADMIN_USERNAME || "admin";
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "admin123";
 const USER_INSERT_BATCH_SIZE = 250;
 const BET_INSERT_BATCH_SIZE = 1_000;
 const MARKET_CATEGORIES = [
@@ -176,6 +179,7 @@ async function insertUsers() {
   console.log(`Creating ${USER_COUNT} users...`);
 
   const passwordHash = await hashPassword(SHARED_PASSWORD);
+  const adminPasswordHash = await hashPassword(SEED_ADMIN_PASSWORD);
   const runId = faker.string.alphanumeric({ length: 6, casing: "lower" });
   const userValues = Array.from({ length: USER_COUNT }, (_, index) => {
     const user = createRandomUser(runId, index + 1);
@@ -183,6 +187,13 @@ async function insertUsers() {
       ...user,
       passwordHash,
     };
+  });
+
+  userValues.unshift({
+    username: SEED_ADMIN_USERNAME,
+    email: SEED_ADMIN_EMAIL.toLowerCase(),
+    passwordHash: adminPasswordHash,
+    role: "admin",
   });
 
   const insertedUsers: UserRow[] = [];
@@ -201,6 +212,7 @@ async function insertUsers() {
   }));
 
   console.log(`Created ${seededUsers.length} users.`);
+  console.log(`Admin user: ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD}`);
 
   return seededUsers;
 }

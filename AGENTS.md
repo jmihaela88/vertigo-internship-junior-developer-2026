@@ -13,6 +13,17 @@ cd client && bun test       # Run client tests (vitest)
 cd client && bun test -- path/to/test.spec.ts  # Run single test file
 ```
 
+# Admin Features
+
+**Admin Authentication Required** for the following features:
+- **Market Resolution**: Mark market as resolved with winning outcome, calculate and distribute proportional payouts to winners
+- **Market Archive**: Mark market as archived, refund all bettors 100% of their bet amounts
+- **Admin Profile Section**: View all markets resolved by the admin user
+
+Admin users are determined by the `ADMIN_EMAILS` environment variable (comma-separated list of admin email addresses). Admin role is assigned at user registration time if the user's email matches a configured admin email.
+
+All admin-protected endpoints return `403 Forbidden` if accessed by non-admin users.
+
 # Architecture
 
 **Monorepo Structure**: Backend (Bun + SQLite + REST API) + Frontend (React 19 + TanStack Router)

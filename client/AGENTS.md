@@ -12,6 +12,20 @@ bun lint                          # Run ESLint
 bun format                        # Run code formatter
 ```
 
+## Admin Features (Requires Admin Authentication)
+
+**Admin-Only UI Elements** (visible only to users with admin role):
+
+On **Market Detail Page** (`routes/markets/$id.tsx`):
+- "Resolve with Selected Outcome" button - Mark market as resolved, calculate and auto-distribute payouts
+- "Archive Market + Refund Bettors" button - Mark market archived, refund all bettors their full bet amounts
+- Confirmation dialogs before any admin action
+
+On **User Profile Page** (`routes/profile.tsx`):
+- "Resolved By You" tab - Shows all markets resolved by current admin user with their winning outcomes
+
+All admin features require the user to have `role === "admin"` in their JWT token.
+
 ## Architecture
 
 **Framework**: TanStack Start (React 19, TypeScript, Vite)  

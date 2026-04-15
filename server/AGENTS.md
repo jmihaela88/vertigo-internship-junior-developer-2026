@@ -75,13 +75,34 @@ All endpoints at `http://localhost:4001`:
 
 ### Markets (`src/api/markets.routes.ts`)
 
-- `GET /api/markets?status=active|resolved` - List markets → `200`
+- `GET /api/markets?status=active|resolved|archived` - List markets → `200`
 - `POST /api/markets` - Create market (auth required) → `201`
 - `GET /api/markets/:id` - Get market details → `200`
+- `POST /api/markets/:id/resolve` - **Resolve market with winning outcome (admin auth required)** → `200` / `403 Forbidden`
+- `POST /api/markets/:id/archive` - **Archive market and refund all bettors (admin auth required)** → `200` / `403 Forbidden`
 
 ### Bets
 
 - `POST /api/markets/:id/bets` - Place bet (auth required) → `201`
+
+### Users
+
+- `GET /api/users/:id/bets?type=active|resolved` - Get user bets (auth required) → `200`
+- `GET /api/users/:id/resolved-markets` - **Get markets resolved by user (admin only)** → `200`
+- `GET /api/leaderboard` - Get global leaderboard (public) → `200`
+
+## Admin Authentication
+
+**Admin Status**: Determined by `ADMIN_EMAILS` environment variable at user registration time
+- Example: `ADMIN_EMAILS=admin@vertigo.local,admin2@company.com`
+- Admin role assigned during registration if user's email matches configured admin emails
+
+**Admin-Only Endpoints** (require valid JWT + role='admin'):
+- `POST /api/markets/:id/resolve` - Marks market as resolved, calculates proportional payouts to winners
+- `POST /api/markets/:id/archive` - Marks market as archived, refunds all bettors 100% of their bet amounts
+- `GET /api/users/:id/resolved-markets` - Retrieves markets resolved by the specified admin user
+
+**Response on Unauthorized Access**: Returns `403 Forbidden` with error message if non-admin user attempts admin endpoint
 
 **CORS**: Enabled for `*` origin with headers `Content-Type, Authorization`
 

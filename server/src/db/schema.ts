@@ -17,6 +17,12 @@ export const usersTable = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     username: text("username").notNull().unique(),
     email: text("email").notNull().unique(),
+    role: text("role", { enum: ["user", "admin"] }).notNull().default("user"),
+    balance: real("balance").notNull().default(1000),
+    apiKeyId: text("api_key_id"),
+    apiKeyHash: text("api_key_hash"),
+    apiKeyCreatedAt: integer("api_key_created_at", { mode: "timestamp" }),
+    apiKeyLastUsedAt: integer("api_key_last_used_at", { mode: "timestamp" }),
     passwordHash: text("password_hash").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
@@ -28,6 +34,7 @@ export const usersTable = sqliteTable(
   (table) => ({
     usernameIdx: uniqueIndex("users_username_idx").on(table.username),
     emailIdx: uniqueIndex("users_email_idx").on(table.email),
+    apiKeyIdIdx: uniqueIndex("users_api_key_id_idx").on(table.apiKeyId),
   }),
 );
 
@@ -38,7 +45,7 @@ export const marketsTable = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     title: text("title").notNull(),
     description: text("description"),
-    status: text("status", { enum: ["active", "resolved"] })
+    status: text("status", { enum: ["active", "resolved", "archived"] })
       .notNull()
       .default("active"),
     createdBy: integer("created_by")
@@ -48,10 +55,16 @@ export const marketsTable = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
     resolvedOutcomeId: integer("resolved_outcome_id"),
+    resolvedBy: integer("resolved_by").references(() => usersTable.id),
+    resolvedAt: integer("resolved_at", { mode: "timestamp" }),
+    archivedBy: integer("archived_by").references(() => usersTable.id),
+    archivedAt: integer("archived_at", { mode: "timestamp" }),
   },
   (table) => ({
     createdByIdx: index("markets_created_by_idx").on(table.createdBy),
     statusIdx: index("markets_status_idx").on(table.status),
+    resolvedByIdx: index("markets_resolved_by_idx").on(table.resolvedBy),
+    archivedByIdx: index("markets_archived_by_idx").on(table.archivedBy),
   }),
 );
 

@@ -6,27 +6,34 @@ import { useNavigate } from "@tanstack/react-router";
 
 interface MarketCardProps {
   market: Market;
+  isAdmin?: boolean;
 }
 
-export function MarketCard({ market }: MarketCardProps) {
+export function MarketCard({ market, isAdmin = false }: MarketCardProps) {
   const navigate = useNavigate();
 
   return (
-    <Card>
+    <Card className="flex flex-col h-full">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-xl">{market.title}</CardTitle>
             <CardDescription>By: {market.creator || "Unknown"}</CardDescription>
           </div>
-          <Badge variant={market.status === "active" ? "default" : "secondary"}>
-            {market.status === "active" ? "Active" : "Resolved"}
+          <Badge
+            variant={market.status === "active" ? "success" : market.status === "resolved" ? "secondary" : "destructive"}
+          >
+            {market.status === "active"
+              ? "Active"
+              : market.status === "resolved"
+                ? "Resolved"
+                : "Archived"}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-col flex-1 space-y-4">
         {/* Outcomes */}
-        <div className="space-y-2">
+        <div className="space-y-2 flex-1">
           {market.outcomes.map((outcome) => (
             <div
               key={outcome.id}
@@ -46,15 +53,17 @@ export function MarketCard({ market }: MarketCardProps) {
         </div>
 
         {/* Total Market Value */}
-        <div className="p-3 rounded-md border border-primary/20 bg-primary/5">
-          <p className="text-xs text-muted-foreground">Total Market Value</p>
-          <p className="text-2xl font-bold text-primary">${market.totalMarketBets.toFixed(2)}</p>
-        </div>
+        <div className="mt-auto space-y-4">
+            <div className="p-3 rounded-md border border-primary/20 bg-primary/5">
+            <p className="text-xs text-muted-foreground">Total Market Value</p>
+            <p className="text-2xl font-bold text-primary">${market.totalMarketBets.toFixed(2)}</p>
+            </div>
 
-        {/* Action Button */}
-        <Button className="w-full" onClick={() => navigate({ to: `/markets/${market.id}` })}>
-          {market.status === "active" ? "Place Bet" : "View Results"}
-        </Button>
+            {/* Action Button */}
+            <Button className="w-full" onClick={() => navigate({ to: `/markets/${market.id}` })}>
+            {market.status === "active" ? (isAdmin ? "Set Outcome" : "Place Bet") : "View Results"}
+            </Button>
+        </div>
       </CardContent>
     </Card>
   );

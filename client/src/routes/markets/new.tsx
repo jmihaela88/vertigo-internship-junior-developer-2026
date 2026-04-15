@@ -11,14 +11,19 @@ import { Label } from "@/components/ui/label";
 
 function CreateMarketPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  if (isAuthLoading) {
+    return <div className="p-8 text-center">Checking authentication...</div>;
+  }
 
   if (!isAuthenticated) {
     navigate({ to: "/auth/login" });
     return null;
   }
+
 
   const form = useForm({
     defaultValues: {

@@ -11,13 +11,15 @@ import { Label } from "@/components/ui/label";
 function MarketDetailPage() {
   const { id } = useParams({ from: "/markets/$id" });
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
   const [market, setMarket] = useState<Market | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOutcomeId, setSelectedOutcomeId] = useState<number | null>(null);
   const [betAmount, setBetAmount] = useState("");
   const [isBetting, setIsBetting] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const marketId = parseInt(id, 10);
 
@@ -46,10 +48,16 @@ function MarketDetailPage() {
       return;
     }
 
+    const parsedAmount = Number.parseFloat(betAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setError("Bet amount must be a positive number");
+      return;
+    }
+
     try {
       setIsBetting(true);
       setError(null);
-      await api.placeBet(marketId, selectedOutcomeId, parseFloat(betAmount));
+      await api.placeBet(marketId, selectedOutcomeId, parsedAmount);
       setBetAmount("");
       // Reload market to show updated odds
       const updated = await api.getMarket(marketId);
@@ -60,6 +68,79 @@ function MarketDetailPage() {
       setIsBetting(false);
     }
   };
+
+  const handleResolveMarket = async () => {
+    if (!market || !selectedOutcomeId) {
+      setError("Please select an outcome to resolve this market");
+      return;
+    }
+
+    if (user?.role !== "admin") {
+      setError("Only admins can resolve markets");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Resolve this market with the selected outcome? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsResolving(true);
+      setError(null);
+      const result = await api.resolveMarket(marketId, selectedOutcomeId);
+      const updated = await api.getMarket(marketId);
+      setMarket(updated);
+      setError(null);
+      window.alert(
+        `Market resolved. Paid out $${result.payoutTotal.toFixed(2)} to ${result.payoutUsersCount} user(s).`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resolve market");
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const handleArchiveMarket = async () => {
+    if (!market) {
+      setError("Market not found");
+      return;
+    }
+
+    if (user?.role !== "admin") {
+      setError("Only admins can archive markets");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Archive this market and refund all bettors? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsArchiving(true);
+      setError(null);
+      const result = await api.archiveMarket(marketId);
+      const updated = await api.getMarket(marketId);
+      setMarket(updated);
+      window.alert(
+        `Market archived. Refunded $${result.refundTotal.toFixed(2)} to ${result.refundUsersCount} user(s).`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to archive market");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Checking authentication...</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -112,8 +193,14 @@ function MarketDetailPage() {
                   <CardDescription className="text-lg mt-2">{market.description}</CardDescription>
                 )}
               </div>
-              <Badge variant={market.status === "active" ? "default" : "secondary"}>
-                {market.status === "active" ? "Active" : "Resolved"}
+              <Badge
+                variant={market.status === "active" ? "success" : market.status === "resolved" ? "secondary" : "destructive"}
+              >
+                {market.status === "active"
+                  ? "Active"
+                  : market.status === "resolved"
+                    ? "Resolved"
+                    : "Archived"}
               </Badge>
             </div>
           </CardHeader>
@@ -153,6 +240,27 @@ function MarketDetailPage() {
               ))}
             </div>
 
+            {/* Bet Distribution Chart */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Bet Distribution</h3>
+              <div className="space-y-3">
+                {market.outcomes.map((outcome) => (
+                  <div key={`chart-${outcome.id}`} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{outcome.title}</span>
+                      <span className="text-muted-foreground">{outcome.odds.toFixed(2)}%</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-secondary/50 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.max(0, Math.min(100, outcome.odds))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Market Stats */}
             <div className="rounded-lg p-6 border border-primary/20 bg-primary/5">
               <p className="text-sm text-muted-foreground mb-1">Total Market Value</p>
@@ -182,7 +290,7 @@ function MarketDetailPage() {
                       id="betAmount"
                       type="number"
                       step="0.01"
-                      min="0"
+                      min="0.01"
                       value={betAmount}
                       onChange={(e) => setBetAmount(e.target.value)}
                       placeholder="Enter amount"
@@ -193,10 +301,47 @@ function MarketDetailPage() {
                   <Button
                     className="w-full text-lg py-6"
                     onClick={handlePlaceBet}
-                    disabled={isBetting || !selectedOutcomeId || !betAmount}
+                    disabled={
+                      isBetting ||
+                      !selectedOutcomeId ||
+                      !betAmount ||
+                      !Number.isFinite(Number.parseFloat(betAmount)) ||
+                      Number.parseFloat(betAmount) <= 0
+                    }
                   >
                     {isBetting ? "Placing bet..." : "Place Bet"}
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {market.status === "active" && user?.role === "admin" && (
+              <Card className="border-amber-300 bg-amber-50">
+                <CardHeader>
+                  <CardTitle>Admin Oracle: Resolve Market</CardTitle>
+                  <CardDescription>
+                    Select the winning outcome and resolve this market. Creators do not auto-resolve.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={handleResolveMarket}
+                      disabled={!selectedOutcomeId || isResolving || isArchiving}
+                    >
+                      {isResolving ? "Resolving..." : "Resolve with Selected Outcome"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleArchiveMarket}
+                      disabled={isArchiving || isResolving}
+                    >
+                      {isArchiving ? "Archiving..." : "Archive Market + Refund Bettors"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -205,6 +350,23 @@ function MarketDetailPage() {
               <Card>
                 <CardContent className="py-6">
                   <p className="text-muted-foreground">This market has been resolved.</p>
+                  {market.resolvedOutcomeId && (
+                    <p className="mt-2 font-semibold text-green-700">
+                      Winning outcome:{" "}
+                      {market.outcomes.find((outcome) => outcome.id === market.resolvedOutcomeId)?.title ||
+                        "Unknown"}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {market.status === "archived" && (
+              <Card>
+                <CardContent className="py-6">
+                  <p className="text-muted-foreground">
+                    This market was archived by an admin. All bettors were refunded.
+                  </p>
                 </CardContent>
               </Card>
             )}

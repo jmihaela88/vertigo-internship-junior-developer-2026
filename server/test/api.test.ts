@@ -1,13 +1,17 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { eq } from "drizzle-orm";
 import { app } from "../index";
 import db from "../src/db";
+import { usersTable } from "../src/db/schema";
 
 const BASE = "http://localhost";
 
 // Shared state across tests (populated by earlier tests, consumed by later ones)
 let authToken: string;
 let userId: number;
+let adminToken: string;
+let adminUserId: number;
 let marketId: number;
 let outcomeId: number;
 
@@ -31,7 +35,7 @@ describe("Auth", () => {
     );
 
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.id).toBeDefined();
     expect(data.username).toBe(username);
     expect(data.email).toBe(email);
@@ -63,7 +67,7 @@ describe("Auth", () => {
     );
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.errors.length).toBeGreaterThan(0);
   });
 
@@ -77,7 +81,7 @@ describe("Auth", () => {
     );
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.id).toBe(userId);
     expect(data.token).toBeDefined();
   });
@@ -128,7 +132,7 @@ describe("Markets", () => {
     );
 
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.id).toBeDefined();
     expect(data.title).toBe("Will it rain tomorrow?");
     expect(data.outcomes).toHaveLength(2);
@@ -150,7 +154,7 @@ describe("Markets", () => {
     );
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.errors.length).toBeGreaterThan(0);
   });
 
@@ -158,7 +162,7 @@ describe("Markets", () => {
     const res = await app.handle(new Request(`${BASE}/api/markets`));
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(Array.isArray(data)).toBe(true);
     expect(data.length).toBeGreaterThan(0);
     expect(data[0].id).toBeDefined();
@@ -170,7 +174,7 @@ describe("Markets", () => {
     const res = await app.handle(new Request(`${BASE}/api/markets/${marketId}`));
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.id).toBe(marketId);
     expect(data.title).toBe("Will it rain tomorrow?");
     expect(data.description).toBe("Weather prediction");
@@ -210,7 +214,7 @@ describe("Bets", () => {
     );
 
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.id).toBeDefined();
     expect(data.userId).toBe(userId);
     expect(data.marketId).toBe(marketId);
@@ -231,8 +235,145 @@ describe("Bets", () => {
     );
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Admin Market Resolution", () => {
+  it("creates an admin account", async () => {
+    const adminEmail = "admin@example.com";
+    const adminPassword = "adminpass123";
+
+    const registerRes = await app.handle(
+      new Request(`${BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: "adminuser",
+          email: adminEmail,
+          password: adminPassword,
+        }),
+      }),
+    );
+
+    expect(registerRes.status).toBe(201);
+    const registerData: any = await registerRes.json();
+    adminUserId = registerData.id;
+
+    await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, adminUserId));
+
+    const loginRes = await app.handle(
+      new Request(`${BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      }),
+    );
+
+    expect(loginRes.status).toBe(200);
+    const loginData: any = await loginRes.json();
+    expect(loginData.role).toBe("admin");
+    adminToken = loginData.token;
+  });
+
+  it("POST /api/markets/:id/resolve — requires auth", async () => {
+    const res = await app.handle(
+      new Request(`${BASE}/api/markets/${marketId}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcomeId }),
+      }),
+    );
+
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/markets/:id/resolve — blocks non-admin", async () => {
+    const res = await app.handle(
+      new Request(`${BASE}/api/markets/${marketId}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ outcomeId }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/markets/:id/resolve — validates outcome belongs to market", async () => {
+    const res = await app.handle(
+      new Request(`${BASE}/api/markets/${marketId}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ outcomeId: 999999 }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/markets/:id/resolve — resolves active market for admin", async () => {
+    const res = await app.handle(
+      new Request(`${BASE}/api/markets/${marketId}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ outcomeId }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const data: any = await res.json();
+    expect(data.status).toBe("resolved");
+    expect(data.resolvedOutcomeId).toBe(outcomeId);
+  });
+
+  it("POST /api/markets/:id/resolve — prevents resolving twice", async () => {
+    const res = await app.handle(
+      new Request(`${BASE}/api/markets/${marketId}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ outcomeId }),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+  });
+});
+
+describe("Leaderboard", () => {
+  it("GET /api/users/leaderboard — returns paginated ranked users", async () => {
+    const res = await app.handle(new Request(`${BASE}/api/users/leaderboard?page=1&limit=20`));
+
+    expect(res.status).toBe(200);
+    const data: any = await res.json();
+    expect(Array.isArray(data.entries)).toBe(true);
+    expect(data.pagination).toBeDefined();
+    expect(data.pagination.page).toBe(1);
+    expect(data.pagination.limit).toBe(20);
+    expect(typeof data.pagination.total).toBe("number");
+    expect(typeof data.pagination.totalPages).toBe("number");
+
+    if (data.entries.length > 0) {
+      expect(data.entries[0].userId).toBeDefined();
+      expect(data.entries[0].username).toBeDefined();
+      expect(typeof data.entries[0].totalWinnings).toBe("number");
+    }
   });
 });
 
@@ -241,7 +382,7 @@ describe("Error handling", () => {
     const res = await app.handle(new Request(`${BASE}/nonexistent`));
 
     expect(res.status).toBe(404);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.error).toBe("Not found");
   });
 });
