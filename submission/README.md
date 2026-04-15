@@ -39,5 +39,5 @@ The implementation focuses on task completeness, clear UX, and consistent API be
 - UI was refined for consistency (status colors, card alignment, admin labels/actions).
 
 ## Images or Video Demo
--added screenshots
--Google Drive link: https://drive.google.com/drive/folders/1QISK762R-1TT-Pm70QbbSr666xFrQkiP?usp=drive_link
+- added screenshots
+- Google Drive link: https://drive.google.com/drive/folders/1QISK762R-1TT-Pm70QbbSr666xFrQkiP?usp=drive_link
